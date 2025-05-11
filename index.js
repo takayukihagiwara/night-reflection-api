@@ -1,70 +1,48 @@
 const express = require("express");
 const bodyParser = require("body-parser");
 const cors = require("cors");
-const { Configuration, OpenAIApi } = require("openai");
+const OpenAI = require("openai");
 require("dotenv").config();
 
 const app = express();
-const port = process.env.PORT || 3000;
-
 app.use(cors());
 app.use(bodyParser.json());
 
-const configuration = new Configuration({
-  apiKey: process.env.OPENAI_API_KEY,
+// OpenAIの初期化
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
 });
-const openai = new OpenAIApi(configuration);
 
+// POSTリクエストでコメントと格言を生成
 app.post("/comment", async (req, res) => {
+  const prompt = req.body.prompt || "今日を振り返って";
+
   try {
-    const { mood, goodThings } = req.body;
-
-    const userPrompt = `
-以下の内容をもとに：
-- 気分スコア：${mood}
-- 良かったこと：
-${goodThings.map((item, index) => `${index + 1}. ${item.good}（理由：${item.reason}）`).join("\n")}
-
-この人の今日の振り返りに対して：
-1. やさしい一言を短く届けてください。
-2. 哲学的な格言を1つ添えてください。
-格言は「＜格言＞」で始めてください。
-コメントと格言は1つの文章で返してください。
-`;
-
-    const completion = await openai.createChatCompletion({
+    const chatCompletion = await openai.chat.completions.create({
       model: "gpt-3.5-turbo",
       messages: [
         {
           role: "system",
-          content:
-            "あなたは利用者の心を穏やかにするカウンセラーです。短くやさしいコメントと、哲学的で深みのある格言を一緒に届けてください。",
+          content: "あなたは日々の振り返りに対して優しいコメントを返し、翌日の心の糧となる哲学的な格言を1つ添える、穏やかなカウンセラーです。"
         },
         {
           role: "user",
-          content: userPrompt,
-        },
+          content: `${prompt}\n\n以下の条件を守ってください。\n・コメントと格言は分けて返してください。\n・格言には必ず「≪格言≫」で始めてください。\n・格言は哲学的・内省的な名言から選んでください。`
+        }
       ],
-      temperature: 0.8,
+      temperature: 0.8
     });
 
-    const fullText = completion.data.choices[0].message.content;
-    const [kindComment, quotePart] = fullText.split("＜格言＞");
-    const quote = quotePart ? "＜格言＞" + quotePart.trim() : "";
-
-    res.json({
-      comment: kindComment.trim(),
-      quote: quote,
-    });
+    const message = chatCompletion.choices[0].message.content;
+    res.json({ message });
   } catch (error) {
-    console.error("エラー:", error);
-    res.json({
-      comment: "エラーが発生しました",
-      quote: "",
-    });
+    console.error("Error:", error.message);
+    res.status(500).json({ error: "OpenAIリクエストに失敗しました。" });
   }
 });
 
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
+// ポート設定
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
 });
