@@ -12,6 +12,7 @@
     "openai": "^4.20.0",
     "body-parser": "^1.20.2"
   },
-   "engines": {
+  "engines": {
     "node": "18.x"
+  }
 }
